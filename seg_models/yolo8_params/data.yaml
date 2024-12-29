@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['island']
+
+roboflow:
+  workspace: wesleyanacct
+  project: nir_islands
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/wesleyanacct/nir_islands/dataset/3
