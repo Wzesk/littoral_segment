@@ -1,10 +1,8 @@
-from google.colab.patches import cv2_imshow
 import torchvision.transforms as T
 from ultralytics import YOLO
 import numpy as np
 from PIL import Image, ImageEnhance
 from scipy import ndimage
-
 
 class YOLOV8:
   def __init__(self,yaml,model_name='yolov8x-seg.pt'):
@@ -45,8 +43,11 @@ def group_contiguous_pixels(mask_in):
 
 
 def mask_from_img(up_img, folder):
-    weights_path = self.folder + '/best.pt'
+    weights_path = './seg_models/yolo8_params/best.pt'
     up_img = ImageEnhance.Contrast(up_img).enhance(2)
+
+    yaml = "./yolo8_params/data.yaml"
+    YOLO_STD = YOLOV8(yaml)
 
     #run inference
     std_results = YOLO_STD.predict(
