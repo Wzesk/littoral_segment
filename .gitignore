@@ -3,3 +3,5 @@ seg_models/__pycache__
 
 .DS_Store
 seg_models/.DS_Store
+
+__pycache__

@@ -16,18 +16,11 @@ We are testing several different ML models for segmentation so this repo is expe
 The goal is for this repo to be accessible in different formats (container on replicate, in a google cloud pipeline, in an athina flow)
 
 
-## Docker Updates
+## Replicate Update
 
-Build the Docker image using the following command:
+Push Cog to Replicate:
 
-`docker build --build-arg PLATFORM=linux/amd64 -t yolov8-segmentation .`
+`cog login`
+`cog push r8.im/<your-username>/<your-model-name>`
 
-To segment a test image, run the following command:
-
-`docker run --rm \
-    -v $(pwd)/seg_models:/app/seg_models \
-    -v $(pwd)/test_img.jpg:/app/test_img.jpg \
-    -v $(pwd)/output:/app/output \
-    yolov8-segmentation`
-
-The segmented output will be saved in the output directory as segmented_output.png.
+Full documentation: https://replicate.com/docs/guides/push-a-model
