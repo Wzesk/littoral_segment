@@ -1,1 +1,5 @@
 seg_models/yolo8_params/best.pt
+seg_models/__pycache__
+
+.DS_Store
+seg_models/.DS_Store
