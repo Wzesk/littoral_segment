@@ -5,6 +5,7 @@ from PIL import Image, ImageEnhance
 from scipy import ndimage
 import os
 
+
 class YOLOV8:
   def __init__(self,folder='/yolo8_params', model_name='yolov8x-seg.pt'):
     self.folder = folder
@@ -43,11 +44,11 @@ class YOLOV8:
       largest_component_img = Image.fromarray(largest_component_mask.astype(np.uint8) * 255)
       return largest_component_img
 
-
-  def mask_from_img(self,up_img):
+def mask_from_img(self,up_img):
       up_img = ImageEnhance.Contrast(up_img).enhance(2)
       #run inference
       std_results = self.predict(
+
         up_img,
         YOLO(self.weights_path)
       )
