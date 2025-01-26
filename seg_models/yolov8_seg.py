@@ -44,30 +44,30 @@ class YOLOV8:
       largest_component_img = Image.fromarray(largest_component_mask.astype(np.uint8) * 255)
       return largest_component_img
 
-def mask_from_img(self,up_img):
-      up_img = ImageEnhance.Contrast(up_img).enhance(2)
-      #run inference
-      std_results = self.predict(
+  def mask_from_img(self,up_img):
+        up_img = ImageEnhance.Contrast(up_img).enhance(2)
+        #run inference
+        std_results = self.predict(
 
-        up_img,
-        YOLO(self.weights_path)
-      )
+          up_img,
+          YOLO(self.weights_path)
+        )
 
-      if(std_results[0].masks != None):
-        #get mask to save
-        mask_img = T.ToPILImage()(std_results[0].masks.data[0])
+        if(std_results[0].masks != None):
+          #get mask to save
+          mask_img = T.ToPILImage()(std_results[0].masks.data[0])
 
-        #clean mask
-        single_isl = self.group_contiguous_pixels(mask_img)
+          #clean mask
+          single_isl = self.group_contiguous_pixels(mask_img)
 
-        #resize single_isl to match the size of img_r
-        single_isl = single_isl.resize(up_img.size)
+          #resize single_isl to match the size of img_r
+          single_isl = single_isl.resize(up_img.size)
 
-        return single_isl
-      else:
-        empty_mask = Image.new('L', up_img.size, 0)
-        return empty_mask
-      
+          return single_isl
+        else:
+          empty_mask = Image.new('L', up_img.size, 0)
+          return empty_mask
+        
   def mask_from_folder(self,folder):
     masks = []
     for root, directories, filenames in os.walk('geotools_sites'):
