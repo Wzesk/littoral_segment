@@ -70,7 +70,7 @@ class YOLOV8:
         
   def mask_from_folder(self,folder):
     masks = []
-    for root, directories, filenames in os.walk('geotools_sites'):
+    for root, directories, filenames in os.walk(folder):
       for filename in filenames:
         if filename.endswith('_up.png'):
             file_path = os.path.join(root,filename)
