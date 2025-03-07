@@ -5,6 +5,9 @@ from PIL import Image, ImageEnhance
 from scipy import ndimage
 import os
 
+from . import tario
+import pandas as pd
+
 
 class YOLOV8:
   def __init__(self,folder='/yolo8_params', model_name='yolov8x-seg.pt'):
@@ -44,7 +47,7 @@ class YOLOV8:
       largest_component_img = Image.fromarray(largest_component_mask.astype(np.uint8) * 255)
       return largest_component_img
 
-def mask_from_img(self,up_img):
+  def mask_from_img(self,up_img):
       up_img = ImageEnhance.Contrast(up_img).enhance(2)
       #run inference
       std_results = self.predict(
@@ -70,7 +73,7 @@ def mask_from_img(self,up_img):
       
   def mask_from_folder(self,folder):
     masks = []
-    for root, directories, filenames in os.walk('geotools_sites'):
+    for root, directories, filenames in os.walk(folder):
       for filename in filenames:
         if filename.endswith('_up.png'):
             file_path = os.path.join(root,filename)
@@ -80,3 +83,29 @@ def mask_from_img(self,up_img):
             mask.save(mask_path)
             masks.append(mask_path)
     return masks
+
+  def mask_from_tar(self,folder_path):
+
+      table_path = folder_path + '/proj_track.csv'
+      upsample_tar_path = folder_path + '/upsampled.tar'
+      mask_tar_path = folder_path + '/mask.tar'
+
+      df = pd.read_csv(table_path)
+      df['segmented'] = False
+
+      # get names where upsampled is true
+      names = df.loc[df['upsampled'] == True]['name'].tolist()
+      for name in names:
+        uptar = tario.tar_io(upsample_tar_path)   
+        img = uptar.get_from_tar(name+'_sr.png')
+
+        mask = self.mask_from_img(img)
+        
+        masktar = tario.tar_io(mask_tar_path) 
+        masktar.save_to_tar(mask, name+'_mask.png',overwrite=True)
+
+        df.loc[df['name'] == name, 'segmented'] = True
+
+      df.to_csv(table_path, index=False)
+
+      return df
