@@ -13,6 +13,8 @@ https://drive.google.com/file/d/1rWBJ7ApzF09d2nwRNNX-Y8sVxtlXPYmL/view?usp=shari
 
 We are testing several different ML models for segmentation so this repo is expected to change and grow potentially allow for different models to be used based on the site.  
 
+The models tested include YOLO v8-v11, SAM, SAM2, Prithvi, Prithvi2
+
 The goal is for this repo to be accessible in different formats (container on replicate, in a google cloud pipeline, in an athina flow)
 
 
@@ -40,10 +42,6 @@ Walter Zesk, Tishya Chhabra, Leandra Tejedor, Philip Ndikum
 Sarah Dole, Skylar Tibbits, Peter Stempel
 
 ## Reference
-The current active segmentation model is fine tuned and forked from: 
-https://github.com/ai-forever/Real-ESRGAN
-
-
 This project draws extensive inspiration from the [Coastsal Project](https://github.com/kvos/CoastSat) described in detail here:
 
 Vos K., Splinter K.D., Harley M.D., Simmons J.A., Turner I.L. (2019). CoastSat: a Google Earth Engine-enabled Python toolkit to extract shorelines from publicly available satellite imagery. Environmental Modelling and Software. 122, 104528. https://doi.org/10.1016/j.envsoft.2019.104528 (Open Access)
