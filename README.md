@@ -31,3 +31,19 @@ To segment a test image, run the following command:
     yolov8-segmentation`
 
 The segmented output will be saved in the output directory as segmented_output.png.
+
+## Contributors
+This module and the larger project it is a part of has had numerous contributors, including:
+
+Walter Zesk, Tishya Chhabra, Leandra Tejedor, Philip Ndikum
+
+Sarah Dole, Skylar Tibbits, Peter Stempel
+
+## Reference
+The current active segmentation model is fine tuned and forked from: 
+https://github.com/ai-forever/Real-ESRGAN
+
+
+This project draws extensive inspiration from the [Coastsal Project](https://github.com/kvos/CoastSat) described in detail here:
+
+Vos K., Splinter K.D., Harley M.D., Simmons J.A., Turner I.L. (2019). CoastSat: a Google Earth Engine-enabled Python toolkit to extract shorelines from publicly available satellite imagery. Environmental Modelling and Software. 122, 104528. https://doi.org/10.1016/j.envsoft.2019.104528 (Open Access)
