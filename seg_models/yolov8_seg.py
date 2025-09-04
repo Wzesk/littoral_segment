@@ -10,9 +10,14 @@ class YOLOV8:
   def __init__(self,folder='/yolo8_params', model_name='yolov8x-seg.pt'):
     self.folder = folder
     self.yaml = self.folder + "/data.yaml"
-    self.weights_path = self.folder + '/best.pt'
+    # check the folder for any weights file with a .pt extension
+    weights_files = [f for f in os.listdir(self.folder) if f.endswith('.pt')]
+    if weights_files:
+        self.weights_path = os.path.join(self.folder, weights_files[0])
+    else:
+        raise ValueError(f"No weights file found in {self.folder}")
     self.model_name = model_name
-
+    
   # need to retrain at higher res to match size of island
   def train(self,epochs=100,imgsz=640,batch=8,mask_ratio=4,name='yolov8x_nir'):
     model = YOLO(self.model_name)
