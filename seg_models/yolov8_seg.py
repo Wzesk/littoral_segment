@@ -82,7 +82,7 @@ class YOLOV8:
             img = Image.open(file_path)
             mask = self.mask_from_img(img)
             mask_path = file_path.replace('UP','MASK')
-            mask_path = mask_path.replace('Normalize','MASK')
+            mask_path = mask_path.replace('NORMALIZED','MASK')
             mask_path = mask_path.replace('_up.png','_mask.png')
 
             # create directory if it doesn't exist
