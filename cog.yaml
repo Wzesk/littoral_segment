@@ -1,0 +1,21 @@
+# cog.yaml
+build:
+  # Set to true if your model (or PyTorch build) needs a GPU
+  gpu: true
+
+  python_version: "3.10.12"
+
+  python_packages:
+    - "torch==2.3.1"
+    - "ultralytics==8.3.57"
+    - "numpy==1.26.4"
+    - "pillow==11.0.0"
+    - "scipy==1.13.1"
+
+  # Install needed Ubuntu packages
+  system_packages:
+    - ffmpeg
+    - libsm6
+    - libxext6
+
+predict: "predict.py:Predictor"
