@@ -77,13 +77,15 @@ class YOLOV8:
     masks = []
     for root, directories, filenames in os.walk(folder):
       for filename in filenames:
-        if filename.endswith('nir_up.png'):
+        #if filename contains '_x' followed by a number
+        if '_x' in filename and filename.split('_x')[1][0].isdigit():
             file_path = os.path.join(root,filename)
             img = Image.open(file_path)
             mask = self.mask_from_img(img)
             mask_path = file_path.replace('UP','MASK')
             mask_path = mask_path.replace('NORMALIZED','MASK')
-            mask_path = mask_path.replace('_up.png','_mask.png')
+            # split file name at _x and replace the rest with _mask.png
+            mask_path = mask_path.split('_x')[0] + '_mask.png'
 
             # create directory if it doesn't exist
             os.makedirs(os.path.dirname(mask_path), exist_ok=True)
