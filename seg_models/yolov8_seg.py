@@ -49,28 +49,70 @@ class YOLOV8:
       largest_component_img = Image.fromarray(largest_component_mask.astype(np.uint8) * 255)
       return largest_component_img
 
-  def mask_from_img(self,up_img):
+  def mask_from_img(self, up_img, retina_masks=True, padding=256):
+    """
+    Generate segmentation mask from image.
+    
+    Args:
+        up_img: Input PIL Image
+        retina_masks: Use high-res masks (default True)
+        padding: Pixels to pad around image to avoid bounding box edge artifacts
+    """
+    orig_size = up_img.size  # (width, height)
+    
+    # Enhance contrast
     up_img = ImageEnhance.Contrast(up_img).enhance(2)
-    #run inference
-    std_results = self.predict(
+    
+    # Add padding to avoid bounding box artifacts at edges
+    if padding > 0:
+      # Get the mean color for padding (or use black for grayscale)
+      img_array = np.array(up_img)
+      if len(img_array.shape) == 2:
+        # Grayscale - pad with edge mean
+        pad_value = int(np.mean(img_array[:, :10]))  # Use left edge mean
+        padded_array = np.pad(img_array, padding, mode='constant', constant_values=pad_value)
+        padded_img = Image.fromarray(padded_array)
+      else:
+        # RGB - pad each channel
+        pad_value = tuple(int(np.mean(img_array[:, :10, c])) for c in range(3))
+        padded_array = np.pad(img_array, ((padding, padding), (padding, padding), (0, 0)), 
+                             mode='constant', constant_values=0)
+        # Fill with pad_value
+        padded_array[:padding, :] = pad_value
+        padded_array[-padding:, :] = pad_value
+        padded_array[:, :padding] = pad_value
+        padded_array[:, -padding:] = pad_value
+        padded_img = Image.fromarray(padded_array)
+    else:
+      padded_img = up_img
+    
+    # Run inference with retina_masks for high-res output
+    model = YOLO(self.weights_path)
+    std_results = model(padded_img, retina_masks=retina_masks)
 
-      up_img,
-      YOLO(self.weights_path)
-    )
-
-    if(std_results[0].masks != None):
-      #get mask to save
+    if std_results[0].masks is not None:
+      # Get mask
       mask_img = T.ToPILImage()(std_results[0].masks.data[0])
-
-      #clean mask
+      
+      # Resize mask to padded image size
+      padded_size = padded_img.size
+      mask_img = mask_img.resize(padded_size)
+      
+      # Crop padding from mask
+      if padding > 0:
+        mask_array = np.array(mask_img)
+        mask_array = mask_array[padding:-padding, padding:-padding]
+        mask_img = Image.fromarray(mask_array)
+      
+      # Clean mask - keep largest connected component
       single_isl = self.group_contiguous_pixels(mask_img)
-
-      #resize single_isl to match the size of img_r
-      single_isl = single_isl.resize(up_img.size)
+      
+      # Ensure final size matches original
+      single_isl = single_isl.resize(orig_size)
 
       return single_isl
     else:
-      empty_mask = Image.new('L', up_img.size, 0)
+      empty_mask = Image.new('L', orig_size, 0)
       return empty_mask
         
   def mask_from_folder(self,folder):
