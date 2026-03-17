@@ -16,8 +16,8 @@ High Resolution Images → [Segmentation] → Binary Masks → Boundary Extracti
 ### Interface
 - **Input**: High-resolution, cloud-free satellite imagery (upsampled)
 - **Output**: Binary masks delineating land/water boundaries
-- **Function**: `YOLOV8.mask_from_folder()`
-- **Technology**: YOLO v8 object detection and segmentation models
+- **Models**: YOLO v8 (default) or SAM2 (via `--seg-model sam2`)
+- **Functions**: `YOLOV8.mask_from_folder()` / `SAM2Seg.mask_from_folder()`
 
 ## Model Development
 
@@ -43,6 +43,7 @@ The goal is to create a site-adaptive system that selects the optimal model base
 
 ## Usage in Pipeline
 
+### YOLO (default)
 ```python
 import sys
 sys.path.append('/path/to/littoral_segment')
@@ -57,6 +58,35 @@ mask_paths = yolo_model.mask_from_folder(input_folder)
 
 print(f"Generated {len(mask_paths)} segmentation masks")
 ```
+
+### SAM2 (no training data required)
+```python
+from seg_models.sam2_seg import SAM2Seg
+
+sam_model = SAM2Seg()  # weights auto-download on first run (~154 MB)
+mask_paths = sam_model.mask_from_folder(input_folder)
+```
+
+SAM2 uses Otsu-guided auto-prompting: it thresholds the NIR image to find
+approximate land/water regions, picks the deepest-inside-land point as the
+foreground prompt and the farthest-from-land point as background. No
+training data or fine-tuning is needed.
+
+### CLI toggle
+```bash
+# YOLO (default)
+python littoral_pipeline.py --site Fenfushi
+
+# SAM2
+python littoral_pipeline.py --site Fenfushi --seg-model sam2
+```
+
+### Dependencies
+SAM2 ships inside `ultralytics` (already a pipeline dependency). No extra
+packages are required. The SAM2 model weights (`sam2.1_b.pt`, ~154 MB) are
+downloaded automatically from GitHub on first use. Additional Python
+dependencies used by the auto-prompting logic (`scipy`, `scikit-image`) are
+also already present in the `littoral_pipeline` conda environment.
 
 ## Deployment Options
 
