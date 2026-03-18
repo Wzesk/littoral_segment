@@ -95,14 +95,21 @@ class SAM2Seg:
 
         orig_size = pil_img.size  # (width, height)
 
-        if results and results[0].masks is not None:
+        if results and results[0].masks is not None and results[0].masks.data.shape[0] > 0:
             mask_data = results[0].masks.data[0].cpu().numpy()
             mask_bin = (mask_data > 0.5).astype(np.uint8) * 255
             mask_img = Image.fromarray(mask_bin).resize(orig_size, Image.NEAREST)
             mask_img = self.group_contiguous_pixels(mask_img)
             return mask_img
 
-        return Image.new('L', orig_size, 0)
+        # SAM2 returned no mask — fall back to the Otsu threshold directly
+        otsu = threshold_otsu(gray)
+        land_mask = gray > otsu
+        if land_mask.sum() / land_mask.size > 0.5:
+            land_mask = ~land_mask
+        mask_img = Image.fromarray(land_mask.astype(np.uint8) * 255)
+        mask_img = self.group_contiguous_pixels(mask_img)
+        return mask_img.resize(orig_size, Image.NEAREST)
 
     def mask_from_folder(self, folder):
         """Walk *folder* for upsampled NIR images and save masks.
