@@ -38,13 +38,14 @@ class YOLO26Seg:
         largest_mask = (labeled_array == largest_label).astype(np.uint8) * 255
         return Image.fromarray(largest_mask)
 
-    def mask_from_img(self, pil_img, retina_masks=True, padding=256):
+    def mask_from_img(self, pil_img, retina_masks=True, padding=256, contrast=2.0):
         """Generate binary land/water mask from a single image.
 
         Args:
             pil_img: Input PIL Image (grayscale or RGB).
             retina_masks: Use high-res masks (default True).
             padding: Pixels to pad to avoid bbox edge artifacts.
+            contrast: Contrast enhancement factor (1.0 = no change).
 
         Returns:
             PIL Image mode 'L': land=255, water=0.
@@ -52,7 +53,8 @@ class YOLO26Seg:
         orig_size = pil_img.size  # (width, height)
 
         # Contrast enhancement
-        pil_img = ImageEnhance.Contrast(pil_img).enhance(2)
+        if contrast != 1.0:
+            pil_img = ImageEnhance.Contrast(pil_img).enhance(contrast)
 
         # Pad to prevent edge artifacts
         img_array = np.array(pil_img)
