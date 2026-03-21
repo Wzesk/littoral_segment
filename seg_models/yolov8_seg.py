@@ -1,3 +1,5 @@
+import torch
+torch.backends.cudnn.enabled = False
 import torchvision.transforms as T
 from ultralytics import YOLO
 import numpy as np
@@ -40,6 +42,8 @@ class YOLOV8:
       mask_array = np.array(mask_in)
       # Label connected components
       labeled_array, num_features = ndimage.label(mask_array)
+      if num_features == 0:
+          return Image.fromarray(np.zeros_like(mask_array, dtype=np.uint8))
       # Find the sizes of each component
       sizes = ndimage.sum(mask_array, labeled_array, range(num_features + 1))
       # Find the label of the largest component
