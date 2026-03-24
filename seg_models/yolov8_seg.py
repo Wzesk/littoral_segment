@@ -94,7 +94,7 @@ class YOLOV8:
     model = YOLO(self.weights_path)
     std_results = model(padded_img, retina_masks=retina_masks)
 
-    if std_results[0].masks is not None:
+    if std_results[0].masks is not None and std_results[0].masks.data.shape[0] > 0:
       # Get mask
       mask_img = T.ToPILImage()(std_results[0].masks.data[0])
       
