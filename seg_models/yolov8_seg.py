@@ -95,26 +95,30 @@ class YOLOV8:
     std_results = model(padded_img, retina_masks=retina_masks)
 
     if std_results[0].masks is not None and std_results[0].masks.data.shape[0] > 0:
-      # Get mask
-      mask_img = T.ToPILImage()(std_results[0].masks.data[0])
+      result = std_results[0]
+      if result.boxes is not None and len(result.boxes) > 0:
+        best_idx = int(result.boxes.conf.cpu().numpy().argmax())
+      else:
+        areas = result.masks.data.sum(dim=(1, 2)).cpu().numpy()
+        best_idx = int(np.argmax(areas))
+      mask_array = result.masks.data[best_idx].cpu().numpy()
+      mask_array = (mask_array > 0.5).astype(np.uint8) * 255
+      mask_img = Image.fromarray(mask_array, mode='L')
       
       # Resize mask to padded image size
       padded_size = padded_img.size
-      mask_img = mask_img.resize(padded_size)
+      mask_img = mask_img.resize(padded_size, Image.NEAREST)
       
       # Crop padding from mask
       if padding > 0:
         mask_array = np.array(mask_img)
         mask_array = mask_array[padding:-padding, padding:-padding]
-        mask_img = Image.fromarray(mask_array)
+        mask_img = Image.fromarray(mask_array, mode='L')
       
-      # Clean mask - keep largest connected component
-      single_isl = self.group_contiguous_pixels(mask_img)
-      
-      # Ensure final size matches original
-      single_isl = single_isl.resize(orig_size)
+      # Preserve raw model topology; shoreline extraction handles site-aware cleanup.
+      mask_img = mask_img.resize(orig_size, Image.NEAREST)
 
-      return single_isl
+      return mask_img
     else:
       empty_mask = Image.new('L', orig_size, 0)
       return empty_mask

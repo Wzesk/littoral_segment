@@ -19,7 +19,13 @@ class YOLO26Seg:
         weights_files = [f for f in os.listdir(self.folder) if f.endswith('.pt')]
         if not weights_files:
             raise ValueError(f"No .pt weights found in {self.folder}")
-        self.weights_path = os.path.join(self.folder, weights_files[0])
+        if model_name and model_name in weights_files:
+            selected = model_name
+        elif 'best.pt' in weights_files:
+            selected = 'best.pt'
+        else:
+            selected = sorted(weights_files)[0]
+        self.weights_path = os.path.join(self.folder, selected)
         self._model = None
 
     def _get_model(self):
@@ -81,19 +87,26 @@ class YOLO26Seg:
         results = model(padded_img, retina_masks=retina_masks, verbose=False)
 
         if results[0].masks is not None and results[0].masks.data.shape[0] > 0:
-            mask_tensor = results[0].masks.data[0]
-            mask_img = T.ToPILImage()(mask_tensor)
+            result = results[0]
+            if result.boxes is not None and len(result.boxes) > 0:
+                best_idx = int(result.boxes.conf.cpu().numpy().argmax())
+            else:
+                areas = result.masks.data.sum(dim=(1, 2)).cpu().numpy()
+                best_idx = int(np.argmax(areas))
+
+            mask_array = result.masks.data[best_idx].cpu().numpy()
+            mask_array = (mask_array > 0.5).astype(np.uint8) * 255
+            mask_img = Image.fromarray(mask_array, mode='L')
 
             # Resize to padded dimensions then crop padding
-            mask_img = mask_img.resize(padded_img.size)
+            mask_img = mask_img.resize(padded_img.size, Image.NEAREST)
             if padding > 0:
                 mask_array = np.array(mask_img)
                 mask_array = mask_array[padding:-padding, padding:-padding]
-                mask_img = Image.fromarray(mask_array)
+                mask_img = Image.fromarray(mask_array, mode='L')
 
-            # Keep largest connected component
-            mask_img = self.group_contiguous_pixels(mask_img)
-            mask_img = mask_img.resize(orig_size)
+            # Preserve raw model topology; shoreline extraction handles site-aware cleanup.
+            mask_img = mask_img.resize(orig_size, Image.NEAREST)
             return mask_img
         else:
             return Image.new('L', orig_size, 0)

@@ -99,7 +99,6 @@ class SAM2Seg:
             mask_data = results[0].masks.data[0].cpu().numpy()
             mask_bin = (mask_data > 0.5).astype(np.uint8) * 255
             mask_img = Image.fromarray(mask_bin).resize(orig_size, Image.NEAREST)
-            mask_img = self.group_contiguous_pixels(mask_img)
             return mask_img
 
         # SAM2 returned no mask — fall back to the Otsu threshold directly
@@ -108,7 +107,6 @@ class SAM2Seg:
         if land_mask.sum() / land_mask.size > 0.5:
             land_mask = ~land_mask
         mask_img = Image.fromarray(land_mask.astype(np.uint8) * 255)
-        mask_img = self.group_contiguous_pixels(mask_img)
         return mask_img.resize(orig_size, Image.NEAREST)
 
     def mask_from_folder(self, folder):
