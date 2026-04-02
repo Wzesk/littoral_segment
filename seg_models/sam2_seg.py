@@ -109,7 +109,7 @@ class SAM2Seg:
         mask_img = Image.fromarray(land_mask.astype(np.uint8) * 255)
         return mask_img.resize(orig_size, Image.NEAREST)
 
-    def mask_from_folder(self, folder):
+    def mask_from_folder(self, folder, periodic=True, selection_config=None):
         """Walk *folder* for upsampled NIR images and save masks.
 
         Matches the YOLOV8 interface: looks for files containing ``_x``
@@ -118,6 +118,7 @@ class SAM2Seg:
 
         Returns a list of saved mask paths.
         """
+        self.last_qc_records = []
         masks = []
         for root, _dirs, filenames in os.walk(folder):
             for filename in filenames:
@@ -133,4 +134,12 @@ class SAM2Seg:
                     os.makedirs(os.path.dirname(mask_path), exist_ok=True)
                     mask.save(mask_path)
                     masks.append(mask_path)
+                    self.last_qc_records.append({
+                        "image_name": filename,
+                        "mask_name": os.path.basename(mask_path),
+                        "mask_path": mask_path,
+                        "candidate_count": 1,
+                        "selected_index": 0,
+                        "periodic": bool(periodic),
+                    })
         return masks

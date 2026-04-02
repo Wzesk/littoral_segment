@@ -5,6 +5,8 @@ from PIL import Image, ImageEnhance
 from scipy import ndimage
 import os
 
+from .shoreline_selection import select_best_mask
+
 
 class YOLO26Seg:
     """YOLO26 instance segmentation for land/water masks.
@@ -44,7 +46,7 @@ class YOLO26Seg:
         largest_mask = (labeled_array == largest_label).astype(np.uint8) * 255
         return Image.fromarray(largest_mask)
 
-    def mask_from_img(self, pil_img, retina_masks=True, padding=256, contrast=2.0):
+    def mask_from_img(self, pil_img, retina_masks=True, padding=256, contrast=2.0, return_qc=False):
         """Generate binary land/water mask from a single image.
 
         Args:
@@ -86,16 +88,25 @@ class YOLO26Seg:
         model = self._get_model()
         results = model(padded_img, retina_masks=retina_masks, verbose=False)
 
+        qc = {"candidate_count": 0, "selected_index": None}
+
         if results[0].masks is not None and results[0].masks.data.shape[0] > 0:
             result = results[0]
-            if result.boxes is not None and len(result.boxes) > 0:
-                best_idx = int(result.boxes.conf.cpu().numpy().argmax())
-            else:
-                areas = result.masks.data.sum(dim=(1, 2)).cpu().numpy()
-                best_idx = int(np.argmax(areas))
+            mask_arrays = []
+            confidences = []
+            for idx in range(result.masks.data.shape[0]):
+                mask_arrays.append((result.masks.data[idx].cpu().numpy() > 0.5).astype(np.uint8) * 255)
+                if result.boxes is not None and len(result.boxes) > idx:
+                    confidences.append(float(result.boxes.conf[idx].cpu().numpy()))
+                else:
+                    confidences.append(0.0)
 
-            mask_array = result.masks.data[best_idx].cpu().numpy()
-            mask_array = (mask_array > 0.5).astype(np.uint8) * 255
+            mask_array, qc = select_best_mask(
+                mask_arrays,
+                confidences=confidences,
+                periodic=getattr(self, "_selection_periodic", True),
+                config=getattr(self, "_selection_config", None),
+            )
             mask_img = Image.fromarray(mask_array, mode='L')
 
             # Resize to padded dimensions then crop padding
@@ -107,22 +118,26 @@ class YOLO26Seg:
 
             # Preserve raw model topology; shoreline extraction handles site-aware cleanup.
             mask_img = mask_img.resize(orig_size, Image.NEAREST)
-            return mask_img
+            return (mask_img, qc) if return_qc else mask_img
         else:
-            return Image.new('L', orig_size, 0)
+            empty = Image.new('L', orig_size, 0)
+            return (empty, qc) if return_qc else empty
 
-    def mask_from_folder(self, folder):
+    def mask_from_folder(self, folder, periodic=True, selection_config=None):
         """Generate masks for all upsampled/normalized images in a folder.
 
         Mirrors YOLOV8.mask_from_folder() interface.
         """
+        self._selection_periodic = periodic
+        self._selection_config = selection_config or {}
+        self.last_qc_records = []
         masks = []
         for root, _dirs, filenames in os.walk(folder):
             for filename in filenames:
                 if '_x' in filename and filename.split('_x')[1][0].isdigit():
                     file_path = os.path.join(root, filename)
                     img = Image.open(file_path)
-                    mask = self.mask_from_img(img)
+                    mask, qc = self.mask_from_img(img, return_qc=True)
 
                     mask_path = file_path.replace('UP', 'MASK')
                     mask_path = mask_path.replace('NORMALIZED', 'MASK')
@@ -131,4 +146,10 @@ class YOLO26Seg:
                     os.makedirs(os.path.dirname(mask_path), exist_ok=True)
                     mask.save(mask_path)
                     masks.append(mask_path)
+                    qc.update({
+                        "image_name": filename,
+                        "mask_name": os.path.basename(mask_path),
+                        "mask_path": mask_path,
+                    })
+                    self.last_qc_records.append(qc)
         return masks

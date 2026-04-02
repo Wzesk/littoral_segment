@@ -7,6 +7,8 @@ from PIL import Image, ImageEnhance
 from scipy import ndimage
 import os
 
+from .shoreline_selection import select_best_mask
+
 
 class YOLOV8:
   def __init__(self,folder='/yolo8_params', model_name='yolov8x-seg.pt'):
@@ -53,7 +55,7 @@ class YOLOV8:
       largest_component_img = Image.fromarray(largest_component_mask.astype(np.uint8) * 255)
       return largest_component_img
 
-  def mask_from_img(self, up_img, retina_masks=True, padding=256):
+  def mask_from_img(self, up_img, retina_masks=True, padding=256, return_qc=False):
     """
     Generate segmentation mask from image.
     
@@ -94,15 +96,27 @@ class YOLOV8:
     model = YOLO(self.weights_path)
     std_results = model(padded_img, retina_masks=retina_masks)
 
+    qc = {"candidate_count": 0, "selected_index": None}
+
     if std_results[0].masks is not None and std_results[0].masks.data.shape[0] > 0:
       result = std_results[0]
-      if result.boxes is not None and len(result.boxes) > 0:
-        best_idx = int(result.boxes.conf.cpu().numpy().argmax())
-      else:
-        areas = result.masks.data.sum(dim=(1, 2)).cpu().numpy()
-        best_idx = int(np.argmax(areas))
-      mask_array = result.masks.data[best_idx].cpu().numpy()
-      mask_array = (mask_array > 0.5).astype(np.uint8) * 255
+      mask_arrays = []
+      confidences = []
+      for idx in range(result.masks.data.shape[0]):
+        mask_array = result.masks.data[idx].cpu().numpy()
+        mask_arrays.append((mask_array > 0.5).astype(np.uint8) * 255)
+        if result.boxes is not None and len(result.boxes) > idx:
+          confidences.append(float(result.boxes.conf[idx].cpu().numpy()))
+        else:
+          confidences.append(0.0)
+
+      selected_mask, qc = select_best_mask(
+        mask_arrays,
+        confidences=confidences,
+        periodic=getattr(self, "_selection_periodic", True),
+        config=getattr(self, "_selection_config", None),
+      )
+      mask_array = selected_mask
       mask_img = Image.fromarray(mask_array, mode='L')
       
       # Resize mask to padded image size
@@ -117,13 +131,15 @@ class YOLOV8:
       
       # Preserve raw model topology; shoreline extraction handles site-aware cleanup.
       mask_img = mask_img.resize(orig_size, Image.NEAREST)
-
-      return mask_img
+      return (mask_img, qc) if return_qc else mask_img
     else:
       empty_mask = Image.new('L', orig_size, 0)
-      return empty_mask
+      return (empty_mask, qc) if return_qc else empty_mask
         
-  def mask_from_folder(self,folder):
+  def mask_from_folder(self,folder, periodic=True, selection_config=None):
+    self._selection_periodic = periodic
+    self._selection_config = selection_config or {}
+    self.last_qc_records = []
     masks = []
     for root, directories, filenames in os.walk(folder):
       for filename in filenames:
@@ -131,7 +147,7 @@ class YOLOV8:
         if '_x' in filename and filename.split('_x')[1][0].isdigit():
             file_path = os.path.join(root,filename)
             img = Image.open(file_path)
-            mask = self.mask_from_img(img)
+            mask, qc = self.mask_from_img(img, return_qc=True)
             mask_path = file_path.replace('UP','MASK')
             mask_path = mask_path.replace('NORMALIZED','MASK')
             # split file name at _x and replace the rest with _mask.png
@@ -142,4 +158,10 @@ class YOLOV8:
 
             mask.save(mask_path)
             masks.append(mask_path)
+            qc.update({
+                "image_name": filename,
+                "mask_name": os.path.basename(mask_path),
+                "mask_path": mask_path,
+            })
+            self.last_qc_records.append(qc)
     return masks
