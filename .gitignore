@@ -2,6 +2,7 @@ seg_models/yolo8_params/best.pt
 seg_models/__pycache__
 test_results
 *.pt
+*.safetensors
 *.pyc
 __pycache__
 
