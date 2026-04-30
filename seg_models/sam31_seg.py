@@ -20,7 +20,9 @@ DEFAULT_MODEL_ID = "facebook/sam3"
 
 # PCS concept string passed to SAM 3's Promptable Concept Segmentation head.
 # The model uses this text to detect all matching object instances across the image.
-_PCS_CONCEPT = "coastal water-land boundary"
+# Using 'landmass' instead of 'shoreline' to force the model to find the generalized
+# convex outer boundary instead of tracing every inlet.
+_PCS_CONCEPT = "landmass"
 
 
 class SAM31Seg:
@@ -56,6 +58,9 @@ class SAM31Seg:
         max_memory_frames: Maximum frames retained in the memory bank.
         text_concept: PCS concept string.  Change to e.g.
             ``"reef flat boundary"`` for atoll-specific deployments.
+        inlet_span_meters: If provided, spans inlets up to this width by applying
+            a morphological closing to the mask output. Assuming 10m/px resolution
+            for Sentinel-2, kernel size is `inlet_span_meters / 10`.
     """
 
     def __init__(
@@ -64,11 +69,13 @@ class SAM31Seg:
         use_temporal_memory: bool = True,
         max_memory_frames: int = 5,
         text_concept: str = _PCS_CONCEPT,
+        inlet_span_meters: Optional[int] = 50,
     ):
         self.model_id = model_id
         self.use_temporal_memory = use_temporal_memory
         self.max_memory_frames = max_memory_frames
         self.text_concept = text_concept
+        self.inlet_span_meters = inlet_span_meters
 
         self._model = None
         self._processor = None
@@ -249,6 +256,14 @@ class SAM31Seg:
                 mask_data = (merged > 0.5).astype(np.uint8) * 255
 
         if mask_data is not None:
+            if self.inlet_span_meters:
+                import cv2
+                # Assuming ~10m/px resolution.
+                k_size = int(self.inlet_span_meters / 10)
+                if k_size > 0:
+                    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (k_size, k_size))
+                    mask_data = cv2.morphologyEx(mask_data, cv2.MORPH_CLOSE, kernel)
+
             mask_img = Image.fromarray(mask_data).resize(orig_size, Image.NEAREST)
             # Sanity check: if the result is almost entirely one class, it may
             # have inverted land/water.  Correct by comparing with Otsu.
