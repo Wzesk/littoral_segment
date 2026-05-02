@@ -70,16 +70,21 @@ class SAM31Seg:
         max_memory_frames: int = 5,
         text_concept: str = _PCS_CONCEPT,
         inlet_span_meters: Optional[int] = 50,
+        prompt_boxes_dir: Optional[str] = None,
     ):
         self.model_id = model_id
         self.use_temporal_memory = use_temporal_memory
         self.max_memory_frames = max_memory_frames
         self.text_concept = text_concept
         self.inlet_span_meters = inlet_span_meters
+        # Directory containing AE bootstrap output; subdir per year holds
+        # prompt_boxes.geojson with bbox_norm entries for SAM box hints.
+        self.prompt_boxes_dir = prompt_boxes_dir
 
         self._model = None
         self._processor = None
         self._device: Optional[str] = None
+        self._current_ae_box: Optional[Tuple[int, int, int, int]] = None
 
         # Rolling memory bank: each entry is a dict with key 'mask' (numpy
         # uint8 array, land=255) from a previous frame.
@@ -160,17 +165,49 @@ class SAM31Seg:
         x2 = min(w - 1, int(cols.max()) + 2)
         return (x1, y1, x2, y2)
 
+    def _load_ae_box(
+        self, year: int, img_w: int, img_h: int
+    ) -> Optional[Tuple[int, int, int, int]]:
+        """Return AE-derived pixel-space box for this year, or None if unavailable."""
+        if not self.prompt_boxes_dir:
+            return None
+        boxes_path = os.path.join(self.prompt_boxes_dir, str(year), "prompt_boxes.geojson")
+        if not os.path.exists(boxes_path):
+            return None
+        try:
+            import json
+            with open(boxes_path) as fh:
+                gj = json.load(fh)
+            features = gj.get("features", [])
+            # Prefer the largest land component; fall back to first feature
+            box_feat = next(
+                (f for f in features if f["properties"].get("is_largest")),
+                features[0] if features else None,
+            )
+            if box_feat is None:
+                return None
+            x1n, y1n, x2n, y2n = box_feat["properties"]["bbox_norm"]
+            return (
+                int(x1n * img_w), int(y1n * img_h),
+                int(x2n * img_w), int(y2n * img_h),
+            )
+        except Exception:
+            return None
+
     def _memory_guided_bbox(
         self,
         gray: np.ndarray,
         periodic: bool,
     ) -> Optional[Tuple[int, int, int, int]]:
-        """Blend current Otsu box with the most recent memory mask's box.
-
-        When temporal memory is available, the previous frame's land region
-        is used to temper the Otsu result, preventing one-frame anomalies
-        (glint, cloud shadow) from wildly shifting the detector hint.
+        """Return a box hint for SAM, in priority order:
+        1. AE-derived box (set by mask_from_folder per image) — most accurate
+        2. Blended Otsu + temporal memory box
+        3. Pure Otsu box
         """
+        # AE prompt box takes priority over all other sources
+        if self._current_ae_box is not None:
+            return self._current_ae_box
+
         otsu_land = self._otsu_land_mask(gray, periodic)
         otsu_box  = self._land_bbox(otsu_land)
 
@@ -293,6 +330,7 @@ class SAM31Seg:
         folder: str,
         periodic: bool = True,
         selection_config: Optional[dict] = None,
+        output_dir: Optional[str] = None,
     ) -> List[str]:
         """Walk *folder* for upsampled NIR images and save land masks.
 
@@ -324,11 +362,27 @@ class SAM31Seg:
         for file_path in candidates:
             filename = os.path.basename(file_path)
             img = Image.open(file_path)
+            # Load AE box hint for the image's year (no-op if no AE data available)
+            year_str = filename[:4]
+            if year_str.isdigit() and self.prompt_boxes_dir:
+                w, h = img.size
+                self._current_ae_box = self._load_ae_box(int(year_str), w, h)
+            else:
+                self._current_ae_box = None
             mask = self.mask_from_img(img, periodic=periodic)
 
-            mask_path = file_path.replace("UP", "MASK")
-            mask_path = mask_path.replace("NORMALIZED", "MASK")
-            mask_path = mask_path.split("_x")[0] + "_mask.png"
+            stem = os.path.basename(file_path).split("_x")[0]
+            # Strip spectral-channel suffixes so the mask is named by date only.
+            for _sfx in ("_nns", "_rgb", "_nir"):
+                if stem.endswith(_sfx):
+                    stem = stem[: -len(_sfx)]
+                    break
+            mask_filename = stem + "_mask.png"
+            if output_dir:
+                mask_path = os.path.join(output_dir, mask_filename)
+            else:
+                site_dir = os.path.dirname(os.path.dirname(file_path))
+                mask_path = os.path.join(site_dir, "MASK", mask_filename)
 
             os.makedirs(os.path.dirname(mask_path), exist_ok=True)
             mask.save(mask_path)

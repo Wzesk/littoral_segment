@@ -123,7 +123,7 @@ class YOLO26Seg:
             empty = Image.new('L', orig_size, 0)
             return (empty, qc) if return_qc else empty
 
-    def mask_from_folder(self, folder, periodic=True, selection_config=None):
+    def mask_from_folder(self, folder, periodic=True, selection_config=None, output_dir=None):
         """Generate masks for all upsampled/normalized images in a folder.
 
         Mirrors YOLOV8.mask_from_folder() interface.
@@ -132,6 +132,8 @@ class YOLO26Seg:
         self._selection_config = selection_config or {}
         self.last_qc_records = []
         masks = []
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
         for root, _dirs, filenames in os.walk(folder):
             for filename in filenames:
                 if '_x' in filename and filename.split('_x')[1][0].isdigit():
@@ -139,9 +141,13 @@ class YOLO26Seg:
                     img = Image.open(file_path)
                     mask, qc = self.mask_from_img(img, return_qc=True)
 
-                    mask_path = file_path.replace('UP', 'MASK')
-                    mask_path = mask_path.replace('NORMALIZED', 'MASK')
-                    mask_path = mask_path.split('_x')[0] + '_mask.png'
+                    if output_dir:
+                        stem = filename.split('_x')[0]
+                        mask_path = os.path.join(output_dir, stem + '_mask.png')
+                    else:
+                        mask_path = file_path.replace('UP', 'MASK')
+                        mask_path = mask_path.replace('NORMALIZED', 'MASK')
+                        mask_path = mask_path.split('_x')[0] + '_mask.png'
 
                     os.makedirs(os.path.dirname(mask_path), exist_ok=True)
                     mask.save(mask_path)

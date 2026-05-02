@@ -136,11 +136,14 @@ class YOLOV8:
       empty_mask = Image.new('L', orig_size, 0)
       return (empty_mask, qc) if return_qc else empty_mask
         
-  def mask_from_folder(self,folder, periodic=True, selection_config=None):
+  def mask_from_folder(self, folder, periodic=True, selection_config=None, output_dir=None):
     self._selection_periodic = periodic
     self._selection_config = selection_config or {}
     self.last_qc_records = []
     masks = []
+    if output_dir:
+      import os as _os
+      _os.makedirs(output_dir, exist_ok=True)
     for root, directories, filenames in os.walk(folder):
       for filename in filenames:
         #if filename contains '_x' followed by a number
@@ -148,10 +151,17 @@ class YOLOV8:
             file_path = os.path.join(root,filename)
             img = Image.open(file_path)
             mask, qc = self.mask_from_img(img, return_qc=True)
-            mask_path = file_path.replace('UP','MASK')
-            mask_path = mask_path.replace('NORMALIZED','MASK')
-            # split file name at _x and replace the rest with _mask.png
-            mask_path = mask_path.split('_x')[0] + '_mask.png'
+
+            if output_dir:
+                # Write to the explicitly configured output directory
+                stem = filename.split('_x')[0]
+                mask_path = os.path.join(output_dir, stem + '_mask.png')
+            else:
+                # Legacy: derive output folder by replacing input folder name
+                mask_path = file_path.replace('UP','MASK')
+                mask_path = mask_path.replace('NORMALIZED','MASK')
+                # split file name at _x and replace the rest with _mask.png
+                mask_path = mask_path.split('_x')[0] + '_mask.png'
 
             # create directory if it doesn't exist
             os.makedirs(os.path.dirname(mask_path), exist_ok=True)
